@@ -53,7 +53,7 @@ void setup() {
 // Main loop function
 void loop() {
   // Only check humidity once every hour
-  if (canGetHumidity(current_hour)) {
+  if (canGetHumidity()) {
     Serial.println("Getting humidity...");
     humidity = getHumidity(H_SENSORS);
 
@@ -110,8 +110,8 @@ int getHumidity(int h_sensors[]) {
 }
 
 // Returns true every hour and updates current_hour
-bool canGetHumidity(time_t current_hour) {
-  time_t t = hour(); // get hour
+bool canGetHumidity() {
+  int t = hour(); // get hour
 
   if (timeDiff(t, current_hour, 'hour') > 0) {
     current_hour = t; // updates current_time to the current hour
@@ -189,7 +189,7 @@ void blinkLed(int port, int d, int times = 1) {
 void setBoardTime() {
   int hour_count = 0;
   bool buttonPressed = false;
-  time_t t_temp = now();
+  int t_temp = second();
 
   Serial.print("Current hour: ");
   Serial.println(current_hour);
@@ -202,7 +202,7 @@ void setBoardTime() {
 
     if (digitalRead(CLOCK_BUTTON) == HIGH) {
       hour_count++;
-      t_temp = now();
+      t_temp = second();
 
       if (hour_count == 24) {
         hour_count = 0;
