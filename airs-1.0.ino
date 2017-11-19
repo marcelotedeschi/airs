@@ -9,24 +9,26 @@
 #include <TimeLib.h>
 
 // Declare number of sensors
-const int NUMBER_OF_SENSORS = 3;
+const int NUMBER_OF_SENSORS = 6;
 
 // Declare Analog inputs being used for humidity sensors
-const int H_SENSORS[NUMBER_OF_SENSORS] = {A0, A1, A2};
+const int H_SENSORS[NUMBER_OF_SENSORS] = {A0, A1, A2, A3, A4, A5};
 int humidity;
 
 // Declare relay port
 const int RELAY_PORT = 13;
 
+// Declare set time ports
+const int CLOCK_BUTTON = 10;
+const int CLOCK_SET_LED = 11;
+const int GREEN_LED = 12;
+const int NIGHT_TIME = 19;
+
 // Declare default irrigation time in minutes
 const int IRRIGATION_TIME = 5;
 
-// Declare light sensor port
-const int LIGHT_SENSOR_PORT = A5;
-const int LIGHT_SENSOR_LIMIT = 500;
-
 // Declare initial board time
-time_t current_hour = now();
+int current_hour = hour();
 
 // Declare humidity limits (the lower the more humid)
 // Values from https://www.filipeflop.com/blog/monitore-sua-planta-usando-arduino/
@@ -37,6 +39,14 @@ const int HUMIDITY_HIGH_LIMIT = 400;
 void setup() {
   // Setup pins
   pinMode(RELAY_PORT, OUTPUT);
+  pinMode(CLOCK_BUTTON, INPUT);
+  pinMode(CLOCK_SET_LED, OUTPUT);
+  pinMode(GREEN_LED, OUTPUT);
+
+  for (int i = 0; i < NUMBER_OF_SENSORS; i++) {
+    pinMode(H_SENSORS[i], INPUT);
+  }
+
   Serial.begin(9600);
 }
 
@@ -47,14 +57,23 @@ void loop() {
     Serial.println("Getting humidity...");
     humidity = getHumidity(H_SENSORS);
 
-    if (isHumidityLow(humidity) && isDarkEnough(LIGHT_SENSOR_PORT)) {
+    if (isHumidityLow(humidity) && isNightTime(current_hour)) {
       Serial.println("Irrigating...");
       // run irrigation system
       activateIrrigation();
     }
   }
 
+  if (digitalRead(CLOCK_BUTTON) == HIGH) {
+    Serial.println("Setting time...");
+    setBoardTime();
+  }
+
   delay(500);
+  Serial.print("system hour: ");
+  Serial.println(hour());
+  Serial.print("current hour: ");
+  Serial.println(current_hour);
 }
 
 void activateIrrigation() {
@@ -106,7 +125,7 @@ bool canGetHumidity(time_t current_hour) {
 bool isEnoughHumidity() {
   int humidity = getHumidity(H_SENSORS);
 
-  if (humidity > HUMIDITY_HIGH_LIMIT) {
+  if (humidity < HUMIDITY_HIGH_LIMIT) {
     return true;
   }
 
@@ -122,8 +141,8 @@ bool isHumidityLow(int humidity) {
   return false;
 }
 
-bool isDarkEnough(int light_sensor) {
-  if (analogRead(light_sensor) < LIGHT_SENSOR_LIMIT) {
+bool isNightTime(int hour) {
+  if (hour > NIGHT_TIME) {
     Serial.println("Night time");
     return true;
   }
@@ -140,10 +159,71 @@ int timeDiff(int t1, int t2, char type) {
       t1 += 24;
     }
 
-    if (type == 'minute') {
+    if (type == 'minute' || type == 'second') {
       t1 += 60;
     }
   }
 
   return t1 - t2;
+}
+
+// Blinks led by entering led port, delay time between blinks and blink times
+void blinkLed(int port, int d, int times = 1) {
+  for (int i = 0; i < times; i++) {
+    digitalWrite(port, HIGH);
+    delay(d);
+    digitalWrite(port, LOW);
+
+    if (times > 1) {
+      delay(d);
+    }
+  }
+}
+
+/* Sets time using a button
+ * 1. Click button once (green light turns on, set is enabled)
+ * 2. Click button the amount of hours you want to set, waiting for
+ *    red led to turn off between clicks
+ * 3. Wait 5 seconds, and it sets the time
+ */
+void setBoardTime() {
+  int hour_count = 0;
+  bool buttonPressed = false;
+  time_t t_temp = now();
+
+  Serial.print("Current hour: ");
+  Serial.println(current_hour);
+
+  digitalWrite(GREEN_LED, HIGH);
+  delay(2000);
+
+  while (buttonPressed || timeDiff(second(), t_temp, 'second') < 5) {
+    buttonPressed = false;
+
+    if (digitalRead(CLOCK_BUTTON) == HIGH) {
+      hour_count++;
+      t_temp = now();
+
+      if (hour_count == 24) {
+        hour_count = 0;
+      }
+
+      buttonPressed = true;
+      digitalWrite(CLOCK_SET_LED, HIGH);
+      delay(800);
+      digitalWrite(CLOCK_SET_LED, LOW);
+    }
+  }
+
+  current_hour = hour_count;
+  setTime(hour_count, 0, 0, 19, 11, 17);
+
+  Serial.print("Hour set to ");
+  Serial.println(hour_count);
+
+  // Blink green light to signal success
+  digitalWrite(GREEN_LED, LOW);
+  delay(100);
+  blinkLed(GREEN_LED, 100, 2);
+  blinkLed(CLOCK_SET_LED, 500, hour_count);
 }
