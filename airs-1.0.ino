@@ -28,9 +28,10 @@ const int LIGHT_SENSOR_LIMIT = 500;
 // Declare initial board time
 time_t current_hour = now();
 
-// Declare low humidity limit
-const int HUMIDITY_LOW_LIMIT = 100; // TODO find correct humidity value
-const int HUMIDITY_HIGH_LIMIT = 1000;
+// Declare humidity limits (the lower the more humid)
+// Values from https://www.filipeflop.com/blog/monitore-sua-planta-usando-arduino/
+const int HUMIDITY_LOW_LIMIT = 800;
+const int HUMIDITY_HIGH_LIMIT = 400;
 
 // Initial Board Setup
 void setup() {
@@ -113,7 +114,7 @@ bool isEnoughHumidity() {
 }
 
 bool isHumidityLow(int humidity) {
-  if (humidity < HUMIDITY_LOW_LIMIT) {
+  if (humidity > HUMIDITY_LOW_LIMIT) {
     Serial.println("Humidity Low");
     return true;
   }
